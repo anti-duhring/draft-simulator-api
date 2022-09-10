@@ -3,6 +3,8 @@ import requests
 import json
 from flask import Flask, jsonify
 from flask_cors import CORS
+from waitress import serve
+from big_board import BigBoardCrawler
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
@@ -50,6 +52,7 @@ def get_needs():
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
+
 @app.route('/picks', methods=['GET'])
 def get_picks():
     url = 'https://tankathon.com/nfl/full_draft'
@@ -77,7 +80,6 @@ def get_picks():
         obj_round = []
         round = table.find('div', class_='round-title').text
         value = obj_round
-        
 
         # All picks from this round
         picks_from_round = table.find_all('tr')
@@ -87,7 +89,8 @@ def get_picks():
             pick_obj = {}
 
             pick_number = pick_item.find('td', class_='pick-number').text
-            pick_team = pick_item.find('div', class_='desktop').text
+            pick_team = pick_item.find('div', class_='desktop').text.replace(
+                "NY ", "").replace("LA ", "")
             pick_prev_team = pick_item.find('div', class_='trade')
 
             # Get the team id
@@ -95,16 +98,17 @@ def get_picks():
                 if pick_team in team:
                     pick_team_id = teams_id[team]
                     pick_obj['current_team_id'] = pick_team_id
-            
+
             # Add pick property
             pick_obj['pick'] = int(pick_number)
+            pick_obj['round'] = int(round[0])
 
             # Get prev team id
             if pick_prev_team is not None:
-                pick_obj['prev_team_id'] = teams_id[pick_prev_team.text.replace(" ", "").replace("WSH", "WAS")]
-            else: 
+                pick_obj['prev_team_id'] = teams_id[
+                    pick_prev_team.text.replace(" ", "").replace("WSH", "WAS")]
+            else:
                 pick_obj['prev_team_id'] = pick_team_id
-            
 
             # Add this pick to round object
             obj_round.append(pick_obj)
@@ -117,4 +121,11 @@ def get_picks():
 
     return response
 
-app.run()
+@app.route('/big-board', methods=['GET'])
+def get_big_board():
+    res = BigBoardCrawler().initialize(nfl_season)
+
+    return res
+
+serve(app, host="0.0.0.0", port=8080)
+#app.run(host='0.0.0.0')
